@@ -31,7 +31,7 @@ from airflow.models import Connection
 from airflow.utils.db import provide_session
 
 logger = logging.getLogger(__name__)
-FABRIC_SCOPES =  "https://api.fabric.microsoft.com/Item.Execute.All https://api.fabric.microsoft.com/Item.ReadWrite.All offline_access openid profile"
+FABRIC_SCOPES = "https://api.fabric.microsoft.com/Item.Execute.All https://api.fabric.microsoft.com/Item.ReadWrite.All offline_access openid profile"
 
 
 @provide_session
@@ -68,7 +68,7 @@ class FabricHook(BaseHook):
 
     :param fabric_conn_id: Airflow Connection ID that contains the connection
         information for the Fabric account used for authentication.
-    """   # noqa: D205
+    """  # noqa: D205
 
     conn_type: str = "fabric"
     conn_name_attr: str = "fabric_conn_id"
@@ -229,11 +229,7 @@ class FabricHook(BaseHook):
             item_run_status = item_run_details["status"]
             if item_run_status in FabricRunItemStatus.TERMINAL_STATUSES:
                 return item_run_status == target_status
-            self.log.info(
-                "Sleeping for %s. The pipeline state is %s.",
-                check_interval,
-                item_run_status
-            )
+            self.log.info("Sleeping for %s. The pipeline state is %s.", check_interval, item_run_status)
             time.sleep(check_interval)
         return False
 
@@ -281,7 +277,6 @@ class FabricAsyncHook(FabricHook):
         :return: The response from the server.
         """
         async with aiohttp.ClientSession() as session:
-
             if request_type.upper() == "GET":
                 request_func = session.get
             elif request_type.upper() == "POST":
@@ -337,9 +332,7 @@ class FabricAsyncHook(FabricHook):
             "Authorization": f"Bearer {access_token}",
         }
 
-    async def get_item_run_details(
-        self, workspace_id: str, item_id: str, item_run_id: str
-    ) -> None:
+    async def get_item_run_details(self, workspace_id: str, item_id: str, item_run_id: str) -> None:
         """
         Get run details of the item instance.
 
