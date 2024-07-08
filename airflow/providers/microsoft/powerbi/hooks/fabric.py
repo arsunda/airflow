@@ -145,7 +145,8 @@ class FabricHook(BaseHook):
         return access_token
 
     def get_headers(self) -> dict[str, str]:
-        """Form of auth headers based on OAuth token.
+        """
+        Form of auth headers based on OAuth token.
 
         :return: dict: Headers with the authorization token.
         """
@@ -231,7 +232,7 @@ class FabricHook(BaseHook):
                 return item_run_status == target_status
             self.log.info("Sleeping for %s. The pipeline state is %s.", check_interval, item_run_status)
             time.sleep(check_interval)
-        return False
+        raise FabricRunItemException(f"Item run did not reach the target status {target_status} within the {timeout} seconds.")
 
     def _send_request(self, request_type: str, url: str, **kwargs) -> requests.Response:
         """
@@ -322,7 +323,8 @@ class FabricAsyncHook(FabricHook):
         return access_token
 
     async def get_headers(self) -> dict[str, str]:
-        """Form of auth headers based on OAuth token.
+        """
+        Form of auth headers based on OAuth token.
 
         :return: dict: Headers with the authorization token.
         """

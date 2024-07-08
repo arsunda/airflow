@@ -1,108 +1,160 @@
-import pytest
+from math import exp
 from unittest.mock import MagicMock, patch
-from airflow.exceptions import AirflowException
-from airflow.providers.microsoft.powerbi.hooks.fabric import FabricHook
+
+import pytest
+import requests
+
+from airflow.models.connection import Connection
+from airflow.providers.microsoft.powerbi.hooks.fabric import (
+    FabricHook,
+    FabricRunItemException,
+    FabricRunItemStatus,
+)
+
+DEFAULT_FABRIC_CONNECTION = "fabric_default"
+ITEM_RUN_LOCATION = "https://api.fabric.microsoft.com/v1/workspaces/4b218778-e7a5-4d73-8187-f10824047715/items/431e8d7b-4a95-4c02-8ccd-6faef5ba1bd7/jobs/instances/f2d65699-dd22-4889-980c-15226deb0e1b"
+WORKSPACE_ID = "workspace_id"
+ITEM_ID = "item_id"
+BASE_URL = "https://api.fabric.microsoft.com"
+API_VERSION = "v1"
+JOB_TYPE = "RunNotebook"
+
+
+@pytest.fixture(autouse=True)
+def setup_connections(create_mock_connection):
+    create_mock_connection(
+        Connection(
+            conn_id=DEFAULT_FABRIC_CONNECTION,
+            conn_type="generic",
+            login="clientId",
+            password="userAcessToken",
+            extra={
+                "tenantId": "tenantId",
+            },
+        )
+    )
+
 
 @pytest.fixture
 def fabric_hook():
-    fabric_conn_id = "fabric_conn"
-    return FabricHook(fabric_conn_id=fabric_conn_id)
+    client = FabricHook(fabric_conn_id=DEFAULT_FABRIC_CONNECTION)
+    return client
 
-def test_get_connection_form_widgets(fabric_hook):
-    form_widgets = FabricHook.get_connection_form_widgets()
-    assert isinstance(form_widgets, dict)
-    assert "refresh_token" in form_widgets
-    assert "extra__microsoft__tenant_id" in form_widgets
 
-def test_get_ui_field_behaviour(fabric_hook):
-    field_behaviour = FabricHook.get_ui_field_behaviour()
-    assert isinstance(field_behaviour, dict)
-    assert "hidden_fields" in field_behaviour
-    assert "relabeling" in field_behaviour
+@pytest.fixture
+def get_token(fabric_hook):
+    fabric_hook._get_token = MagicMock(return_value="access_token")
+    return fabric_hook._get_token
 
-def test_init(fabric_hook):
-    assert fabric_hook.fabric_conn_id == "fabric_conn"
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._get_token")
-def test_get_headers(mock_get_token, fabric_hook):
-    mock_get_token.return_value = "access_token"
+def test_get_headers(get_token, fabric_hook):
     headers = fabric_hook.get_headers()
     assert isinstance(headers, dict)
     assert "Authorization" in headers
     assert headers["Authorization"] == "Bearer access_token"
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
-def test_get_item_run_details(mock_send_request, fabric_hook):
-    location = "https://api.fabric.microsoft.com/runs/123"
-    fabric_hook.get_item_run_details(location)
-    mock_send_request.assert_called_once_with("GET", location)
+
+def test_get_item_run_details_success(fabric_hook, get_token, mocker):
+    # Mock response for successful response from _send_request
+    response = MagicMock()
+    response.ok = True
+    response.json.return_value = {"status": "Completed"}
+
+    mocker.patch.object(fabric_hook, "_send_request", return_value=response)
+    mocker.patch.object(fabric_hook, "get_headers", return_value={"Authorization": "Bearer access_token"})
+
+    result = fabric_hook.get_item_run_details(location=ITEM_RUN_LOCATION)
+
+    assert result == {"status": "Completed"}
+    fabric_hook.get_headers.assert_called_once()
+    fabric_hook._send_request.assert_called_once_with(
+        "GET", ITEM_RUN_LOCATION, headers={"Authorization": f"Bearer {get_token.return_value}"}
+    )
+
+
+def test_get_item_run_details_failure(fabric_hook, get_token, mocker):
+    # Mock response for failed response from _send_request
+    response = MagicMock()
+    response.ok = False
+    response.raise_for_status.side_effect = requests.exceptions.HTTPError("Error")
+
+    mocker.patch.object(fabric_hook, "_send_request", return_value=response)
+    mocker.patch.object(fabric_hook, "get_headers", return_value={"Authorization": "Bearer access_token"})
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        fabric_hook.get_item_run_details(location=ITEM_RUN_LOCATION)
+
+    fabric_hook.get_headers.assert_called_once()
+    fabric_hook._send_request.assert_called_once_with(
+        "GET", ITEM_RUN_LOCATION, headers={"Authorization": f"Bearer {get_token.return_value}"}
+    )
+
 
 @patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
-def test_get_item_details(mock_send_request, fabric_hook):
-    workspace_id = "workspace_id"
-    item_id = "item_id"
-    fabric_hook.get_item_details(workspace_id, item_id)
-    expected_url = f"https://api.fabric.microsoft.com/workspaces/{workspace_id}/items/{item_id}"
-    mock_send_request.assert_called_once_with("GET", expected_url)
+def test_get_item_details(mock_send_request, fabric_hook, get_token):
+    fabric_hook.get_item_details(WORKSPACE_ID, ITEM_ID)
+    expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}"
+    mock_send_request.assert_called_once_with(
+        "GET", expected_url, headers={"Authorization": f"Bearer {get_token.return_value}"}
+    )
+
 
 @patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
-def test_run_fabric_item(mock_send_request, fabric_hook):
-    workspace_id = "workspace_id"
-    item_id = "item_id"
-    job_type = "job_type"
-    fabric_hook.run_fabric_item(workspace_id, item_id, job_type)
-    expected_url = f"https://api.fabric.microsoft.com/workspaces/{workspace_id}/items/{item_id}/runs"
-    mock_send_request.assert_called_once_with("POST", expected_url, json={"jobType": job_type})
+def test_run_fabric_item(mock_send_request, fabric_hook, get_token):
+    fabric_hook.run_fabric_item(WORKSPACE_ID, ITEM_ID, JOB_TYPE)
+    expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances?jobType={JOB_TYPE}"
+    mock_send_request.assert_called_once_with(
+        "POST", expected_url, headers={"Authorization": f"Bearer {get_token.return_value}"}
+    )
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook.wait_for_item_run_status")
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
-def test_wait_for_item_run_status(mock_send_request, mock_wait_for_status, fabric_hook):
-    location = "https://api.fabric.microsoft.com/runs/123"
-    target_status = "Completed"
-    fabric_hook.wait_for_item_run_status(location, target_status)
-    mock_wait_for_status.assert_called_once_with(location, target_status)
+_wait_for_item_run_status_test_args = [
+    (FabricRunItemStatus.COMPLETED, FabricRunItemStatus.COMPLETED, True),
+    (FabricRunItemStatus.FAILED, FabricRunItemStatus.COMPLETED, False),
+    (FabricRunItemStatus.IN_PROGRESS, FabricRunItemStatus.COMPLETED, "timeout"),
+    (FabricRunItemStatus.NOT_STARTED, FabricRunItemStatus.COMPLETED, "timeout"),
+    (FabricRunItemStatus.CANCELLED, FabricRunItemStatus.COMPLETED, False)
+]
+
+@pytest.mark.parametrize(
+    argnames=("item_run_status", "expected_status", "expected_result"),
+    argvalues=_wait_for_item_run_status_test_args,
+    ids=[
+        f"run_status_{argval[0]}_expected_{argval[1]}"
+        if isinstance(argval[1], str)
+        else f"run_status_{argval[0]}_expected_AnyTerminalStatus"
+        for argval in _wait_for_item_run_status_test_args
+    ]
+)
+def test_wait_for_item_run_status(fabric_hook, item_run_status, expected_status, expected_result):
+    config = {
+        "location": ITEM_RUN_LOCATION,
+        "timeout": 3,
+        "check_interval": 1,
+        "target_status": expected_status,
+    }
+
+    with patch.object(FabricHook, "get_item_run_details") as mock_item_run:
+        mock_item_run.return_value = {"status": item_run_status}
+
+        if expected_result != "timeout":
+            assert fabric_hook.wait_for_item_run_status(**config) == expected_result
+        else:
+            with pytest.raises(FabricRunItemException):
+                fabric_hook.wait_for_item_run_status(**config)
 
 @patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
-def test_send_request(mock_send_request, fabric_hook):
+def test_send_request(mock_send_request, fabric_hook: FabricHook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"
     fabric_hook._send_request(request_type, url)
     mock_send_request.assert_called_once_with(request_type, url)
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._get_token")
-def test_send_request_with_token(mock_get_token, mock_send_request, fabric_hook):
-    mock_get_token.return_value = "access_token"
+@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
+def test_send_request_with_custom_headers(mock_send_request, get_token, fabric_hook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"
-    fabric_hook._send_request(request_type, url, use_token=True)
-    mock_get_token.assert_called_once()
-    mock_send_request.assert_called_once_with(request_type, url, headers={"Authorization": "Bearer access_token"})
-
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._get_token")
-def test_send_request_with_token_expired(mock_get_token, fabric_hook):
-    mock_get_token.side_effect = AirflowException("Token expired")
-    request_type = "GET"
-    url = "https://api.fabric.microsoft.com/test"
-    with pytest.raises(AirflowException):
-        fabric_hook._send_request(request_type, url, use_token=True)
-    mock_get_token.assert_called_once()
-
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._get_token")
-def test_send_request_without_token(mock_get_token, mock_send_request, fabric_hook):
-    request_type = "GET"
-    url = "https://api.fabric.microsoft.com/test"
-    fabric_hook._send_request(request_type, url, use_token=False)
-    mock_get_token.assert_not_called()
-    mock_send_request.assert_called_once_with(request_type, url)
-
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._get_token")
-def test_send_request_with_custom_headers(mock_get_token, mock_send_request, fabric_hook):
-    mock_get_token.return_value = "access_token"
-    request_type = "GET"
-    url = "https://api.fabric.microsoft.com/test"
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {get_token.return_value}"}
     fabric_hook._send_request(request_type, url, headers=headers)
-    mock_get_token.assert_called_once()
     mock_send_request.assert_called_once_with(
         request_type, url, headers={"Content-Type": "application/json", "Authorization": "Bearer access_token"}
     )
