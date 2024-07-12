@@ -713,7 +713,6 @@ class TestAzureDataFactoryAsyncHook:
     async def test_get_async_conn_with_default_azure_credential(
         self, mock_default_azure_credential, mocked_connection
     ):
-        """"""
         hook = AzureDataFactoryAsyncHook(mocked_connection.conn_id)
         response = await hook.get_async_conn()
         assert isinstance(response, DataFactoryManagementClient)

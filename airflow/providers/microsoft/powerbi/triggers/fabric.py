@@ -1,19 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
 from __future__ import annotations
 
 import asyncio
@@ -28,18 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class FabricTrigger(BaseTrigger):
-    """
-    Trigger when a Fabric item run finishes.
-
-    :param fabric_conn_id: The connection ID to use when connecting to the Fabric service.
-    :param item_run_id: The item run ID.
-    :param workspace_id: The workspace ID.
-    :param item_id: The item ID.
-    :param job_type: The job type.
-    :param end_time: The end time for the trigger.
-    :param check_interval: The interval to check the status of the item run.
-    :param wait_for_termination: Whether to wait for the item run to terminate.
-    """
+    """Trigger when a Fabric item run finishes."""
 
     def __init__(
         self,
@@ -81,6 +54,7 @@ class FabricTrigger(BaseTrigger):
     async def run(self) -> AsyncIterator[TriggerEvent]:
         """Make async connection to the fabric and polls for the item run status."""
         hook = FabricAsyncHook(fabric_conn_id=self.fabric_conn_id)
+
         try:
             while self.end_time > time.monotonic():
                 try:
@@ -90,13 +64,13 @@ class FabricTrigger(BaseTrigger):
                         item_id=self.item_id,
                     )
                     item_run_staus = item_run_details["status"]
-
                     if item_run_staus == FabricRunItemStatus.COMPLETED:
                         yield TriggerEvent(
                             {
                                 "status": "success",
                                 "message": f"The item run {self.item_run_id} has status {item_run_staus}.",
                                 "run_id": self.item_run_id,
+                                "item_run_status": item_run_staus,
                             }
                         )
                         return
@@ -106,6 +80,7 @@ class FabricTrigger(BaseTrigger):
                                 "status": "error",
                                 "message": f"The item run {self.item_run_id} has status {item_run_staus}.",
                                 "run_id": self.item_run_id,
+                                "item_run_status": item_run_staus,
                             }
                         )
                         return
@@ -122,15 +97,20 @@ class FabricTrigger(BaseTrigger):
                             "status": "error",
                             "message": str(error),
                             "run_id": self.item_run_id,
+                            "item_run_status": FabricRunItemStatus.FAILED,
                         }
                     )
+                    return
+
+            # Timeout reached
             yield TriggerEvent(
                 {
                     "status": "error",
-                    "message": f"The item run {self.item_run_id} has {item_run_staus}.",
+                    "message": f"Timeout reached: The item run {self.item_run_id} has {item_run_staus}.",
                     "run_id": self.item_run_id,
                 }
             )
+            return
         except Exception as error:
             try:
                 await hook.cancel_item_run(
@@ -159,3 +139,4 @@ class FabricTrigger(BaseTrigger):
                         "run_id": self.item_run_id,
                     }
                 )
+                return

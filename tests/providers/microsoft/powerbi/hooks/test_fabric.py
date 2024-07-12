@@ -1,4 +1,6 @@
-from math import exp
+from __future__ import annotations
+
+from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -6,6 +8,7 @@ import requests
 
 from airflow.models.connection import Connection
 from airflow.providers.microsoft.powerbi.hooks.fabric import (
+    FabricAsyncHook,
     FabricHook,
     FabricRunItemException,
     FabricRunItemStatus,
@@ -15,9 +18,11 @@ DEFAULT_FABRIC_CONNECTION = "fabric_default"
 ITEM_RUN_LOCATION = "https://api.fabric.microsoft.com/v1/workspaces/4b218778-e7a5-4d73-8187-f10824047715/items/431e8d7b-4a95-4c02-8ccd-6faef5ba1bd7/jobs/instances/f2d65699-dd22-4889-980c-15226deb0e1b"
 WORKSPACE_ID = "workspace_id"
 ITEM_ID = "item_id"
+ITEM_RUN_ID = "item_run_id"
 BASE_URL = "https://api.fabric.microsoft.com"
 API_VERSION = "v1"
 JOB_TYPE = "RunNotebook"
+MODULE = "airflow.providers.microsoft.powerbi.hooks.fabric"
 
 
 @pytest.fixture(autouse=True)
@@ -90,7 +95,7 @@ def test_get_item_run_details_failure(fabric_hook, get_token, mocker):
     )
 
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
+@patch(f"{MODULE}.FabricHook._send_request")
 def test_get_item_details(mock_send_request, fabric_hook, get_token):
     fabric_hook.get_item_details(WORKSPACE_ID, ITEM_ID)
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}"
@@ -99,7 +104,7 @@ def test_get_item_details(mock_send_request, fabric_hook, get_token):
     )
 
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
+@patch(f"{MODULE}.FabricHook._send_request")
 def test_run_fabric_item(mock_send_request, fabric_hook, get_token):
     fabric_hook.run_fabric_item(WORKSPACE_ID, ITEM_ID, JOB_TYPE)
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances?jobType={JOB_TYPE}"
@@ -142,14 +147,14 @@ def test_wait_for_item_run_status(fabric_hook, item_run_status, expected_status,
             with pytest.raises(FabricRunItemException):
                 fabric_hook.wait_for_item_run_status(**config)
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
+@patch(f"{MODULE}.FabricHook._send_request")
 def test_send_request(mock_send_request, fabric_hook: FabricHook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"
     fabric_hook._send_request(request_type, url)
     mock_send_request.assert_called_once_with(request_type, url)
 
-@patch("airflow.providers.microsoft.powerbi.hooks.fabric.FabricHook._send_request")
+@patch(f"{MODULE}.FabricHook._send_request")
 def test_send_request_with_custom_headers(mock_send_request, get_token, fabric_hook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"
@@ -157,4 +162,48 @@ def test_send_request_with_custom_headers(mock_send_request, get_token, fabric_h
     fabric_hook._send_request(request_type, url, headers=headers)
     mock_send_request.assert_called_once_with(
         request_type, url, headers={"Content-Type": "application/json", "Authorization": "Bearer access_token"}
+    )
+
+@pytest.fixture
+def fabric_async_hook():
+    client = FabricAsyncHook(fabric_conn_id=DEFAULT_FABRIC_CONNECTION)
+    return client
+
+@pytest.mark.asyncio
+@mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
+async def test_async_get_headers(mock_get_token, fabric_async_hook):
+    headers = await fabric_async_hook.get_headers()
+    assert isinstance(headers, dict)
+    assert "Authorization" in headers
+    assert headers["Authorization"] == "Bearer access_token"
+
+
+@pytest.mark.asyncio
+@mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
+async def test_async_get_item_run_details_success(get_token, fabric_async_hook, mocker):
+    # Mock response for successful response from _send_request
+    response = MagicMock()
+    response.ok = True
+    response.json.return_value = {"status": "Completed"}
+
+    mocker.patch.object(fabric_async_hook, "get_headers", return_value={"Authorization": f"Bearer {get_token.return_value}"})
+    mocker.patch.object(fabric_async_hook, "_send_request", return_value=response.json.return_value)
+
+    expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances/{ITEM_RUN_ID}"
+    result = await fabric_async_hook.get_item_run_details(workspace_id=WORKSPACE_ID, item_id=ITEM_ID, item_run_id=ITEM_RUN_ID)
+
+    assert result == {"status": "Completed"}
+    fabric_async_hook.get_headers.assert_called_once()
+    fabric_async_hook._send_request.assert_called_once_with(
+        "GET", expected_url, headers={"Authorization": "Bearer access_token"}
+    )
+
+@pytest.mark.asyncio
+@patch(f"{MODULE}.FabricAsyncHook._send_request")
+@mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
+async def test_async_cancel_item_run(get_token, mock_send_request, fabric_async_hook):
+    await fabric_async_hook.cancel_item_run(WORKSPACE_ID, ITEM_ID, ITEM_RUN_ID)
+    expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances/{ITEM_RUN_ID}/cancel"
+    mock_send_request.assert_called_once_with(
+        "POST", expected_url, headers={"Authorization": "Bearer access_token"}
     )

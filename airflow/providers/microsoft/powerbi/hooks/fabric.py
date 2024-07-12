@@ -106,14 +106,24 @@ class FabricHook(BaseHook):
         self.conn_id = fabric_conn_id
         self._api_version = "v1"
         self._base_url = "https://api.fabric.microsoft.com"
+        self.cached_access_token: dict[str, str | None | int] = {"access_token": None, "expiry_time": 0}
         super().__init__()
 
     def _get_token(self) -> str:
         """
-        Generate OAuth access token using refresh token in connection details.
+        If cached access token isn't expired, return it.
+
+        Generate OAuth access token using refresh token in connection details and cache it.
+        Update the connection with the new refresh token.
 
         :return: The access token.
         """
+        access_token = self.cached_access_token.get("access_token")
+        expiry_time = self.cached_access_token.get("expiry_time")
+
+        if access_token and expiry_time > time.time():
+            return str(access_token)
+
         connection = self.get_connection(self.conn_id)
         tenant_id = connection.extra_dejson.get("tenantId")
         client_id = connection.login
@@ -142,6 +152,12 @@ class FabricHook(BaseHook):
         access_token = response.json().get("access_token")
         refresh_token = response.json().get("refresh_token")
         update_conn(self.conn_id, refresh_token)
+
+        self.cached_access_token = {
+            "access_token": access_token,
+            "expiry_time": time.time() + response.json().get("expires_in"),
+        }
+
         return access_token
 
     def get_headers(self) -> dict[str, str]:
@@ -232,7 +248,9 @@ class FabricHook(BaseHook):
                 return item_run_status == target_status
             self.log.info("Sleeping for %s. The pipeline state is %s.", check_interval, item_run_status)
             time.sleep(check_interval)
-        raise FabricRunItemException(f"Item run did not reach the target status {target_status} within the {timeout} seconds.")
+        raise FabricRunItemException(
+            f"Item run did not reach the target status {target_status} within the {timeout} seconds."
+        )
 
     def _send_request(self, request_type: str, url: str, **kwargs) -> requests.Response:
         """
@@ -298,6 +316,12 @@ class FabricAsyncHook(FabricHook):
 
         :return: The access token.
         """
+        access_token = self.cached_access_token.get("access_token")
+        expiry_time = self.cached_access_token.get("expiry_time")
+
+        if access_token and expiry_time > time.time():
+            return str(access_token)
+
         connection = await sync_to_async(self.get_connection)(self.conn_id)
         tenant_id = connection.extra_dejson.get("tenantId")
         client_id = connection.login
@@ -310,16 +334,21 @@ class FabricAsyncHook(FabricHook):
             "refresh_token": refresh_token,
             "scope": scopes,
         }
-
         response = await self._send_request(
             "POST",
             f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
             data=data,
         )
-
         access_token = response.get("access_token")
         refresh_token = response.get("refresh_token")
+
         await sync_to_async(update_conn)(self.conn_id, refresh_token)
+
+        self.cached_access_token = {
+            "access_token": access_token,
+            "expiry_time": time.time() + response.get("expires_in"),
+        }
+
         return access_token
 
     async def get_headers(self) -> dict[str, str]:

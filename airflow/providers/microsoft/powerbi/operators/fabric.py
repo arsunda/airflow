@@ -20,20 +20,22 @@ import logging
 import time
 import warnings
 from functools import cached_property
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
-from airflow.models.taskinstancekey import TaskInstanceKey
 from airflow.providers.microsoft.powerbi.hooks.fabric import (
     FabricHook,
     FabricRunItemException,
     FabricRunItemStatus,
 )
 from airflow.providers.microsoft.powerbi.triggers.fabric import FabricTrigger
-from airflow.utils.context import Context
 from airflow.utils.decorators import apply_defaults
+
+if TYPE_CHECKING:
+    from airflow.models.taskinstancekey import TaskInstanceKey
+    from airflow.utils.context import Context
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +119,9 @@ class FabricRunItemOperator(BaseOperator):
         return FabricHook(fabric_conn_id=self.fabric_conn_id)
 
     def execute(self, context: Context) -> None:
-        response = self.hook.run_fabric_item(self.workspace_id, self.item_id, job_type=self.job_type)
+        response = self.hook.run_fabric_item(
+            workspace_id=self.workspace_id, item_id=self.item_id, job_type=self.job_type
+        )
         self.location = response.headers["Location"]
 
         item_run_details = self.hook.get_item_run_details(self.location)
@@ -152,6 +156,7 @@ class FabricRunItemOperator(BaseOperator):
 
                 if self.item_run_status not in FabricRunItemStatus.TERMINAL_STATUSES:
                     self.log.info("Deferring the task to wait for item run to complete.")
+
                     self.defer(
                         trigger=FabricTrigger(
                             fabric_conn_id=self.fabric_conn_id,
@@ -201,3 +206,4 @@ class FabricRunItemOperator(BaseOperator):
             if event["status"] == "error":
                 raise AirflowException(event["message"])
             self.log.info(event["message"])
+            context["ti"].xcom_push(key="run_status", value=event["status"])
