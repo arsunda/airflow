@@ -81,7 +81,7 @@ def get_pool(
 
 
 @pools_router.get(
-    "/",
+    "",
     responses=create_openapi_http_exception_doc([status.HTTP_404_NOT_FOUND]),
 )
 def get_pools(
@@ -103,7 +103,7 @@ def get_pools(
         session=session,
     )
 
-    pools = session.scalars(pools_select).all()
+    pools = session.scalars(pools_select)
 
     return PoolCollectionResponse(
         pools=[PoolResponse.model_validate(pool, from_attributes=True) for pool in pools],
