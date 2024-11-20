@@ -129,6 +129,29 @@ export type BaseInfoSchema = {
 };
 
 /**
+ * List of config sections with their options.
+ */
+export type Config = {
+  sections: Array<ConfigSection>;
+};
+
+/**
+ * Config option.
+ */
+export type ConfigOption = {
+  key: string;
+  value: string | [string, string];
+};
+
+/**
+ * Config Section Schema.
+ */
+export type ConfigSection = {
+  name: string;
+  options: Array<ConfigOption>;
+};
+
+/**
  * Connection Serializer for requests body.
  */
 export type ConnectionBody = {
@@ -1278,7 +1301,7 @@ export type ClearDagRunResponse =
   | DAGRunResponse;
 
 export type GetDagSourceData = {
-  accept?: string;
+  accept?: "application/json" | "text/plain" | "*/*";
   dagId: string;
   versionNumber?: number | null;
 };
@@ -1290,6 +1313,21 @@ export type GetDagStatsData = {
 };
 
 export type GetDagStatsResponse = DagStatsCollectionResponse;
+
+export type GetConfigData = {
+  accept?: "application/json" | "text/plain" | "*/*";
+  section?: string | null;
+};
+
+export type GetConfigResponse = Config;
+
+export type GetConfigValueData = {
+  accept?: "application/json" | "text/plain" | "*/*";
+  option: string;
+  section: string;
+};
+
+export type GetConfigValueResponse = Config;
 
 export type ListDagWarningsData = {
   dagId?: string | null;
@@ -1557,6 +1595,17 @@ export type GetTaskInstanceTryDetailsData = {
 
 export type GetTaskInstanceTryDetailsResponse = TaskInstanceHistoryResponse;
 
+export type GetMappedTaskInstanceTryDetailsData = {
+  dagId: string;
+  dagRunId: string;
+  mapIndex: number;
+  taskId: string;
+  taskTryNumber: number;
+};
+
+export type GetMappedTaskInstanceTryDetailsResponse =
+  TaskInstanceHistoryResponse;
+
 export type GetTasksData = {
   dagId: string;
   orderBy?: string;
@@ -1718,7 +1767,7 @@ export type $OpenApiTs = {
       };
     };
   };
-  "/public/assets/queuedEvent/{uri}": {
+  "/public/assets/queuedEvents/{uri}": {
     get: {
       req: GetAssetQueuedEventsData;
       res: {
@@ -1797,7 +1846,7 @@ export type $OpenApiTs = {
       };
     };
   };
-  "/public/dags/{dag_id}/assets/queuedEvent": {
+  "/public/dags/{dag_id}/assets/queuedEvents": {
     get: {
       req: GetDagAssetQueuedEventsData;
       res: {
@@ -1853,7 +1902,7 @@ export type $OpenApiTs = {
       };
     };
   };
-  "/public/dags/{dag_id}/assets/queuedEvent/{uri}": {
+  "/public/dags/{dag_id}/assets/queuedEvents/{uri}": {
     get: {
       req: GetDagAssetQueuedEventData;
       res: {
@@ -2476,6 +2525,68 @@ export type $OpenApiTs = {
       };
     };
   };
+  "/public/config": {
+    get: {
+      req: GetConfigData;
+      res: {
+        /**
+         * Successful Response
+         */
+        200: Config;
+        /**
+         * Unauthorized
+         */
+        401: HTTPExceptionResponse;
+        /**
+         * Forbidden
+         */
+        403: HTTPExceptionResponse;
+        /**
+         * Not Found
+         */
+        404: HTTPExceptionResponse;
+        /**
+         * Not Acceptable
+         */
+        406: HTTPExceptionResponse;
+        /**
+         * Validation Error
+         */
+        422: HTTPValidationError;
+      };
+    };
+  };
+  "/public/config/section/{section}/option/{option}": {
+    get: {
+      req: GetConfigValueData;
+      res: {
+        /**
+         * Successful Response
+         */
+        200: Config;
+        /**
+         * Unauthorized
+         */
+        401: HTTPExceptionResponse;
+        /**
+         * Forbidden
+         */
+        403: HTTPExceptionResponse;
+        /**
+         * Not Found
+         */
+        404: HTTPExceptionResponse;
+        /**
+         * Not Acceptable
+         */
+        406: HTTPExceptionResponse;
+        /**
+         * Validation Error
+         */
+        422: HTTPValidationError;
+      };
+    };
+  };
   "/public/dagWarnings": {
     get: {
       req: ListDagWarningsData;
@@ -2928,6 +3039,8 @@ export type $OpenApiTs = {
         422: HTTPValidationError;
       };
     };
+  };
+  "/public/pools": {
     post: {
       req: PostPoolData;
       res: {
@@ -3165,6 +3278,33 @@ export type $OpenApiTs = {
   "/public/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/tries/{task_try_number}": {
     get: {
       req: GetTaskInstanceTryDetailsData;
+      res: {
+        /**
+         * Successful Response
+         */
+        200: TaskInstanceHistoryResponse;
+        /**
+         * Unauthorized
+         */
+        401: HTTPExceptionResponse;
+        /**
+         * Forbidden
+         */
+        403: HTTPExceptionResponse;
+        /**
+         * Not Found
+         */
+        404: HTTPExceptionResponse;
+        /**
+         * Validation Error
+         */
+        422: HTTPValidationError;
+      };
+    };
+  };
+  "/public/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/{map_index}/tries/{task_try_number}": {
+    get: {
+      req: GetMappedTaskInstanceTryDetailsData;
       res: {
         /**
          * Successful Response
