@@ -293,7 +293,7 @@ export type DAGDetailsResponse = {
   description: string | null;
   timetable_summary: string | null;
   timetable_description: string | null;
-  tags: Array<DagTagPydantic>;
+  tags: Array<DagTagResponse>;
   max_active_tasks: number;
   max_active_runs: number | null;
   max_consecutive_failed_dag_runs: number;
@@ -352,7 +352,7 @@ export type DAGResponse = {
   description: string | null;
   timetable_summary: string | null;
   timetable_description: string | null;
-  tags: Array<DagTagPydantic>;
+  tags: Array<DagTagResponse>;
   max_active_tasks: number;
   max_active_runs: number | null;
   max_consecutive_failed_dag_runs: number;
@@ -515,7 +515,7 @@ export type DAGWithLatestDagRunsResponse = {
   description: string | null;
   timetable_summary: string | null;
   timetable_description: string | null;
-  tags: Array<DagTagPydantic>;
+  tags: Array<DagTagResponse>;
   max_active_tasks: number;
   max_active_runs: number | null;
   max_consecutive_failed_dag_runs: number;
@@ -620,9 +620,9 @@ export type DagStatsStateResponse = {
 };
 
 /**
- * Serializable representation of the DagTag ORM SqlAlchemyModel used by internal API.
+ * DAG Tag serializer for responses.
  */
-export type DagTagPydantic = {
+export type DagTagResponse = {
   name: string;
   dag_id: string;
 };
@@ -1421,6 +1421,7 @@ export type GetConfigValueResponse = Config;
 export type RecentDagRunsData = {
   dagDisplayNamePattern?: string | null;
   dagIdPattern?: string | null;
+  dagIds?: Array<string> | null;
   dagRunsLimit?: number;
   lastDagRunState?: DagRunState | null;
   limit?: number;
@@ -1450,13 +1451,23 @@ export type StructureDataData = {
 export type StructureDataResponse2 = StructureDataResponse;
 
 export type ListBackfillsData = {
-  dagId: string;
+  active?: boolean | null;
+  dagId?: string | null;
   limit?: number;
   offset?: number;
   orderBy?: string;
 };
 
 export type ListBackfillsResponse = BackfillCollectionResponse;
+
+export type ListBackfills1Data = {
+  dagId: string;
+  limit?: number;
+  offset?: number;
+  orderBy?: string;
+};
+
+export type ListBackfills1Response = BackfillCollectionResponse;
 
 export type CreateBackfillData = {
   requestBody: BackfillPostBody;
@@ -1850,6 +1861,8 @@ export type GetTaskInstancesData = {
   startDateGte?: string | null;
   startDateLte?: string | null;
   state?: Array<string>;
+  taskDisplayNamePattern?: string | null;
+  taskId?: string | null;
   updatedAtGte?: string | null;
   updatedAtLte?: string | null;
 };
@@ -2545,9 +2558,28 @@ export type $OpenApiTs = {
       };
     };
   };
-  "/public/backfills": {
+  "/ui/backfills": {
     get: {
       req: ListBackfillsData;
+      res: {
+        /**
+         * Successful Response
+         */
+        200: BackfillCollectionResponse;
+        /**
+         * Not Found
+         */
+        404: HTTPExceptionResponse;
+        /**
+         * Validation Error
+         */
+        422: HTTPValidationError;
+      };
+    };
+  };
+  "/public/backfills": {
+    get: {
+      req: ListBackfills1Data;
       res: {
         /**
          * Successful Response
