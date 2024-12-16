@@ -60,13 +60,12 @@ class FabricRunItemException(AirflowException):
     """An exception that indicates a item run failed to complete."""
 
 
-class FabricHook(BaseHook):
+class MSFabricHook(BaseHook):
     """
     A hook to interact with Microsoft Fabric.
     This hook uses OAuth token generated from the refresh token, client ID and tenant ID specified in the connection.
 
-    :param fabric_conn_id: Airflow Connection ID that contains the connection
-        information for the Fabric account used for authentication.
+    :param fabric_conn_id: Airflow Connection ID that contains the connection information for the Fabric account used for authentication.
     """  # noqa: D205
 
     conn_type: str = "fabric"
@@ -82,7 +81,9 @@ class FabricHook(BaseHook):
         from wtforms import PasswordField, StringField
 
         return {
-            "clientSecret": PasswordField(lazy_gettext("Client Secret"), widget=BS3PasswordFieldWidget()),
+            "clientSecret": PasswordField(
+                lazy_gettext("Client Secret (optional)"), widget=BS3PasswordFieldWidget()
+            ),
             "tenantId": StringField(lazy_gettext("Tenant ID"), widget=BS3TextFieldWidget()),
             "scopes": StringField(lazy_gettext("Scopes"), widget=BS3TextFieldWidget()),
         }
@@ -94,7 +95,7 @@ class FabricHook(BaseHook):
             "hidden_fields": ["schema", "port", "host", "extra"],
             "relabeling": {
                 "login": "Client ID",
-                "password": "Refresh Token",
+                "password": "User Refresh Token",
             },
         }
 
@@ -223,13 +224,15 @@ class FabricHook(BaseHook):
 
         raise AirflowException(f"Failed to get item details for item {item_id} in workspace {workspace_id}.")
 
-    def run_fabric_item(self, workspace_id: str, item_id: str, job_type: str, job_params: dict | None) -> str:
+    def run_fabric_item(
+        self, workspace_id: str, item_id: str, job_type: str, job_params: dict | None = None
+    ) -> str:
         """
         Run a Fabric item.
 
-        :param workspace_id: The workspace Id in which the item is located.
-        :param item_id: The item Id. To check available items, Refer to: https://learn.microsoft.com/rest/api/fabric/admin/items/list-items?tabs=HTTP#itemtype.
-        :param job_type: The type of job to run. For running a notebook, this should be "RunNotebook".
+        :param workspace_id: The workspace ID in which the item is located.
+        :param item_id: The item ID. To check available items, Refer to: https://learn.microsoft.com/rest/api/fabric/admin/items/list-items?tabs=HTTP#itemtype.
+        :param job_type: Set to `Pipeline` if you are running a pipeline. Set to `RunNotebook` if you are running a notebook.
         :param job_params: An optional dictionary of parameters to pass to the job.
 
         :return: The location of item run.
@@ -248,37 +251,6 @@ class FabricHook(BaseHook):
             raise AirflowException("Location header not found in run on demand item response.")
 
         return location_header
-
-    # TODO: output value from notebook should be available in xcom - not available in API yet
-
-    def wait_for_item_run_status(
-        self,
-        location: str,
-        target_status: str,
-        check_interval: int = 60,
-        timeout: int = 60 * 60 * 24 * 7,
-    ) -> bool:
-        """
-        Wait for the item run to reach a target status.
-
-        :param location: The location of the item instance retrieved from the header of item run API.
-        :param target_status: The status to wait for.
-        :param check_interval: The interval at which to check the status.
-        :param timeout: The maximum time to wait for the status.
-
-        :return: True if the item run reached the target status, False otherwise.
-        """
-        start_time = time.monotonic()
-        while time.monotonic() - start_time < timeout:
-            item_run_details = self.get_item_run_details(location)
-            item_run_status = item_run_details["status"]
-            if item_run_status in FabricRunItemStatus.TERMINAL_STATUSES:
-                return item_run_status == target_status
-            self.log.info("Sleeping for %s. The item run state is %s.", check_interval, item_run_status)
-            time.sleep(check_interval)
-        raise FabricRunItemException(
-            f"Item run did not reach the target status {target_status} within the {timeout} seconds."
-        )
 
     def _send_request(self, request_type: str, url: str, **kwargs) -> requests.Response:
         """
@@ -302,7 +274,7 @@ class FabricHook(BaseHook):
         return response
 
 
-class FabricAsyncHook(FabricHook):
+class MSFabricAsyncHook(MSFabricHook):
     """
     Interact with Microsoft Fabric asynchronously.
 
@@ -314,7 +286,7 @@ class FabricAsyncHook(FabricHook):
     def __init__(self, *, fabric_conn_id: str = default_conn_name):
         super().__init__(fabric_conn_id=fabric_conn_id)
 
-    async def _async_send_request(self, request_type: str, url: str, **kwargs) -> Any:
+    async def async_send_request(self, request_type: str, url: str, **kwargs) -> Any:
         """
         Asynchronously sends a HTTP request and returns the response.
 
@@ -332,15 +304,15 @@ class FabricAsyncHook(FabricHook):
                 raise AirflowException(f"Unsupported request type: {request_type}")
 
             response = await request_func(url, **kwargs)
-            try:
-                response.raise_for_status()
-                return await response.json()
-            except aiohttp.ClientResponseError as e:
-                raise AirflowException("Request to %s failed with error %s", url, e)
+        try:
+            response.raise_for_status()
+            return await response.json()
+        except aiohttp.ClientResponseError as e:
+            raise AirflowException("Request to %s failed with error %s", url, e)
 
     async def _async_get_token(self) -> str:
         """
-        Async version of '_get_token' from super class FabricHook. Get the access token from the refresh token.
+        Async version of '_get_token' from super class MSFabricHook. Get the access token from the refresh token.
 
         :return: The access token.
         """
@@ -367,7 +339,7 @@ class FabricAsyncHook(FabricHook):
         if client_secret:
             data["client_secret"] = client_secret
 
-        response = await self._async_send_request(
+        response = await self.async_send_request(
             "POST",
             f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
             data=data,
@@ -376,7 +348,7 @@ class FabricAsyncHook(FabricHook):
         api_refresh_token: str | None = response.get("refresh_token")
 
         if not api_access_token or not api_refresh_token:
-            raise AirflowException("Failed to obtain access or refresh token from API.")
+            raise FabricRunItemException("Failed to obtain access or refresh token from API.")
 
         await sync_to_async(update_conn)(self.conn_id, api_refresh_token)
 
@@ -389,7 +361,7 @@ class FabricAsyncHook(FabricHook):
 
     async def async_get_headers(self) -> dict[str, str]:
         """
-        Form of auth headers based on OAuth token. Async version of 'get_headers' from super class FabricHook.
+        Form of auth headers based on OAuth token. Async version of 'get_headers' from super class MSFabricHook.
 
         :return: dict: Headers with the authorization token.
         """
@@ -407,21 +379,25 @@ class FabricAsyncHook(FabricHook):
         """
         url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances/{item_run_id}"
         headers = await self.async_get_headers()
-        response = await self._async_send_request("GET", url, headers=headers)
+        response = await self.async_send_request("GET", url, headers=headers)
 
         return response
 
-    async def cancel_item_run(self, workspace_id: str, item_id: str, item_run_id: str):
+    async def async_cancel_item_run(self, workspace_id: str, item_id: str, item_run_id: str):
         """
         Cancel the item run.
 
-        :param workspace_id: The workspace Id in which the item is located.
-        :param item_id: The item Id.
-        :param item_run_id: The Id of the item run.
+        https://learn.microsoft.com/rest/api/fabric/core/job-scheduler/cancel-item-job-instance?tabs=HTTP#errorresponse
+
+        :param workspace_id: The workspace ID in which the item is located.
+        :param item_id: The item ID.
+        :param item_run_id: The ID of the item run.
 
         """
-        url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances/{item_run_id}/cancel"
-        headers = await self.async_get_headers()
-        response = await self._async_send_request("POST", url, headers=headers)
-
-        return response
+        try:
+            url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances/{item_run_id}/cancel"
+            headers = await self.async_get_headers()
+            response = await self.async_send_request("POST", url, headers=headers)
+            return response
+        except Exception as error:
+            FabricRunItemException(error)

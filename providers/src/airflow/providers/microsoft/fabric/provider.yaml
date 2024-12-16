@@ -28,7 +28,7 @@ versions:
   - 1.0.0
 
 dependencies:
-  - apache-airflow>=2.7.0
+  - apache-airflow>=2.8.0
   - azure-identity>=1.3.1
 
 integrations:
@@ -36,7 +36,6 @@ integrations:
     external-doc-url: https://learn.microsoft.com/en-us/fabric/
     how-to-guide:
       - /docs/apache-airflow-providers-microsoft-fabric/operators/batch.rst
-    # logo: /integration-logos/azure/Microsoft-Azure-Batch.png
     tags: [fabric]
 
 operators:
@@ -55,8 +54,8 @@ triggers:
       - airflow.providers.microsoft.fabric.triggers.fabric
 
 connection-types:
-  - hook-class-name: airflow.providers.microsoft.fabric.hooks.fabric.FabricHook
+  - hook-class-name: airflow.providers.microsoft.fabric.hooks.fabric.MSFabricHook
     connection-type: fabric
 
 extra-links:
-  - airflow.providers.microsoft.fabric.operators.fabric.FabricRunItemLink
+  - airflow.providers.microsoft.fabric.operators.fabric.MSFabricRunItemLink

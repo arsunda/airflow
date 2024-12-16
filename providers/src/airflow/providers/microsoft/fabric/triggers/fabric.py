@@ -19,14 +19,27 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
+from typing import (
+    Any,
+)
 
-from airflow.providers.microsoft.fabric.hooks.fabric import FabricAsyncHook, FabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.fabric import FabricRunItemStatus, MSFabricAsyncHook
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
 
-class FabricTrigger(BaseTrigger):
-    """Trigger when a Fabric item run finishes."""
+class MSFabricRunItemTrigger(BaseTrigger):
+    """
+    A Microsoft Fabric API trigger which allows you to execute an async REST call to run Fabric pipelines or notebooks.
+
+    :param fabric_conn_id: A MS Fabric Connection ID to run the operator against.
+    :param item_run_id: Unique Item Run ID associated with specific item run.
+    :param workspace_id: Microsoft Fabric workspace ID where your item is located.
+    :param item_id: Microsoft Fabric Item ID you want to run.
+    :param job_type: Set to `Pipeline` if you are running a pipeline. Set to `RunNotebook` if you are running a notebook.
+    :param end_time: Time in seconds when triggers will timeout.
+    :param check_interval: Time in seconds to check on a item run's status.
+    """
 
     def __init__(
         self,
@@ -35,9 +48,8 @@ class FabricTrigger(BaseTrigger):
         workspace_id: str,
         item_id: str,
         job_type: str,
-        end_time: float,
+        end_time: float = 60 * 60 * 24 * 7,
         check_interval: int = 60,
-        wait_for_termination: bool = True,
     ):
         super().__init__()
         self.fabric_conn_id = fabric_conn_id
@@ -47,12 +59,11 @@ class FabricTrigger(BaseTrigger):
         self.job_type = job_type
         self.end_time = end_time
         self.check_interval = check_interval
-        self.wait_for_termination = wait_for_termination
 
-    def serialize(self):
-        """Serialize the FabricTrigger instance."""
+    def serialize(self) -> tuple[str, dict[str, Any]]:
+        """Serialize the MSFabricRunItemTrigger arguments and classpath."""
         return (
-            "airflow.providers.microsoft.fabric.triggers.fabric.FabricTrigger",
+            f"{self.__class__.__module__}.{self.__class__.__name__}",
             {
                 "fabric_conn_id": self.fabric_conn_id,
                 "item_run_id": self.item_run_id,
@@ -61,14 +72,16 @@ class FabricTrigger(BaseTrigger):
                 "job_type": self.job_type,
                 "end_time": self.end_time,
                 "check_interval": self.check_interval,
-                "wait_for_termination": self.wait_for_termination,
             },
         )
 
-    async def run(self) -> AsyncIterator[TriggerEvent]:
-        """Make async connection to the fabric and polls for the item run status."""
-        hook = FabricAsyncHook(fabric_conn_id=self.fabric_conn_id)
+    def _get_async_hook(self) -> MSFabricAsyncHook:
+        return MSFabricAsyncHook(fabric_conn_id=self.fabric_conn_id)
 
+    async def run(self) -> AsyncIterator[TriggerEvent]:
+        """Get current MS Fabric item run status (Pipeline or notebook) and yields a TriggerEvent."""
+        hook = self._get_async_hook()
+        item_run_status = None
         try:
             while self.end_time > time.monotonic():
                 item_run_details = await hook.async_get_item_run_details(
@@ -77,6 +90,7 @@ class FabricTrigger(BaseTrigger):
                     item_id=self.item_id,
                 )
                 item_run_status = item_run_details["status"]
+
                 if item_run_status == FabricRunItemStatus.COMPLETED:
                     yield TriggerEvent(
                         {
@@ -108,7 +122,7 @@ class FabricTrigger(BaseTrigger):
             yield TriggerEvent(
                 {
                     "status": "error",
-                    "message": f"Timeout reached: The item run {self.item_run_id} has {item_run_status}.",
+                    "message": f"Timeout reached: Unable to confirm final status of the item run {self.item_run_id}. Last known status: {item_run_status}.",
                     "run_id": self.item_run_id,
                 }
             )
@@ -119,14 +133,14 @@ class FabricTrigger(BaseTrigger):
                     error,
                     self.item_run_id,
                 )
-                await hook.cancel_item_run(
+                await hook.async_cancel_item_run(
                     item_run_id=self.item_run_id,
                     workspace_id=self.workspace_id,
                     item_id=self.item_id,
                 )
                 yield TriggerEvent(
                     {
-                        "status": "error",
+                        "status": "cancelled",
                         "message": str(error),
                         "run_id": self.item_run_id,
                         "item_run_status": FabricRunItemStatus.CANCELLED,

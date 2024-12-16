@@ -16,7 +16,7 @@
 # under the License.
 
 """
-This is an example dag for using the FabricRunItemOperator to run Microsoft Fabric Pipeline.
+This is an example dag for using the MSFabricRunItemOperator to run Microsoft Fabric Pipeline.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from airflow import DAG
 from airflow.decorators import task
 from airflow.models import Connection
 from airflow.models.baseoperator import chain
-from airflow.providers.microsoft.fabric.operators.fabric import FabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.fabric import MSFabricRunItemOperator
 from airflow.settings import Session
 
 DAG_ID = "run_fabric_pipeline"
@@ -45,7 +45,6 @@ SCOPES = os.environ.get(f"{SYSTEM_TESTS_ENV_NAME}_SCOPES", None)
 
 # Operator Environment variables
 WORKSPACE_ID = os.environ.get(f"{SYSTEM_TESTS_ENV_NAME}_WORKSPACE_ID", None)
-NOTEBOOK_ID = os.environ.get(f"{SYSTEM_TESTS_ENV_NAME}_NOTEBOOK_ID", None)
 PIPELINE_ID = os.environ.get(f"{SYSTEM_TESTS_ENV_NAME}_PIPELINE_ID", None)
 
 log = logging.getLogger(__name__)
@@ -80,27 +79,14 @@ with DAG(
 
     create_connection_task = create_connection(connection_id=CONNECTION_ID)
 
-    # [START howto_operator_fabric_run_pipeline_sync]
-    run_pipeline_task_sync = FabricRunItemOperator(
-        task_id="run_pipeline_sync",
-        workspace_id="de1004ac-eef9-4851-adac-92c09719dd8e",
-        item_id="3e5f8462-c071-4243-af71-76085cfe2fb6",
-        fabric_conn_id="fabric_conn",
-        job_type="Pipeline",
-        wait_for_termination=False,
-        deferrable=False,
-    )
-    # [END howto_operator_fabric_run_pipeline_sync]
-    # Test west user admin1, agarg-workspace
     # [START howto_operator_fabric_run_pipeline_async]
-    run_pipeline_task_async = FabricRunItemOperator(
+    run_pipeline_task_async = MSFabricRunItemOperator(
         task_id="run_pipeline_async",
-        workspace_id="de1004ac-eef9-4851-adac-92c09719dd8e",
-        item_id="3e5f8462-c071-4243-af71-76085cfe2fb6",
-        fabric_conn_id="fabric_conn",
+        workspace_id=WORKSPACE_ID,
+        item_id=PIPELINE_ID,
+        fabric_conn_id=CONNECTION_ID,
         job_type="Pipeline",
-        wait_for_termination=True,
-        deferrable=True,
+        check_interval=10,
     )
     # [END howto_operator_fabric_run_pipeline_async]
 
@@ -118,7 +104,6 @@ with DAG(
         # TEST SETUP
         create_connection_task,
         # TEST BODY
-        run_pipeline_task_sync,
         run_pipeline_task_async,
         # TEST TEARDOWN
         delete_connection_task,

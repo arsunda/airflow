@@ -19,10 +19,10 @@
 Fabric Run Item Operator
 =================================
 
-FabricRunItemOperator
+MSFabricRunItemOperator
 ----------------------------------
 Use the
-:class:`~airflow.providers.microsoft.fabric.operators.fabric.FabricRunItemOperator` to trigger an item on Microsoft Fabric
+:class:`~airflow.providers.microsoft.fabric.operators.fabric.MSFabricRunItemOperator` to trigger an item on Microsoft Fabric
 
 Below is an example of using this operator to trigger a Microsoft Fabric notebook
 
