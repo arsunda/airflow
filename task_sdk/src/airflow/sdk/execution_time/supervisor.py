@@ -397,7 +397,7 @@ class WatchedSubprocess:
             # We've forked, but the task won't start doing anything until we send it the StartupDetails
             # message. But before we do that, we need to tell the server it's started (so it has the chance to
             # tell us "no, stop!" for any reason)
-            self.client.task_instances.start(ti.id, self.pid, datetime.now(tz=timezone.utc))
+            ti_context = self.client.task_instances.start(ti.id, self.pid, datetime.now(tz=timezone.utc))
             self._last_successful_heartbeat = time.monotonic()
         except Exception:
             # On any error kill that subprocess!
@@ -408,12 +408,18 @@ class WatchedSubprocess:
             ti=ti,
             file=os.fspath(path),
             requests_fd=requests_fd,
+            ti_context=ti_context,
         )
 
         # Send the message to tell the process what it needs to execute
         log.debug("Sending", msg=msg)
-        self.stdin.write(msg.model_dump_json().encode())
-        self.stdin.write(b"\n")
+
+        try:
+            self.stdin.write(msg.model_dump_json().encode())
+            self.stdin.write(b"\n")
+        except BrokenPipeError:
+            # Debug is fine, the process will have shown _something_ in it's last_chance exception handler
+            log.debug("Couldn't send startup message to Subprocess - it died very early", pid=self.pid)
 
     def kill(
         self,
@@ -692,13 +698,10 @@ class WatchedSubprocess:
         elif isinstance(msg, DeferTask):
             self._terminal_state = IntermediateTIState.DEFERRED
             self.client.task_instances.defer(self.id, msg)
-            resp = None
         elif isinstance(msg, SetXCom):
             self.client.xcoms.set(msg.dag_id, msg.run_id, msg.task_id, msg.key, msg.value, msg.map_index)
-            resp = None
         elif isinstance(msg, PutVariable):
             self.client.variables.set(msg.key, msg.value, msg.description)
-            resp = None
         else:
             log.error("Unhandled request", msg=msg)
             return

@@ -14,17 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from datetime import datetime
-
-from pydantic import BaseModel as BaseModelPydantic, ConfigDict
-
-
-class LogTemplatePydantic(BaseModelPydantic):
-    """Serializable version of the LogTemplate ORM SqlAlchemyModel used by internal API."""
-
-    id: int
-    filename: str
-    elasticsearch_id: str
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
