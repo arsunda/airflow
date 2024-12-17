@@ -643,6 +643,7 @@ export type EdgeResponse = {
   label?: string | null;
   source_id: string;
   target_id: string;
+  is_source_asset?: boolean | null;
 };
 
 /**
@@ -773,11 +774,28 @@ export type NodeResponse = {
   label: string;
   tooltip?: string | null;
   setup_teardown_type?: "setup" | "teardown" | null;
-  type: "join" | "task" | "asset_condition";
+  type:
+    | "join"
+    | "task"
+    | "asset-condition"
+    | "asset"
+    | "asset-alias"
+    | "dag"
+    | "sensor"
+    | "trigger";
   operator?: string | null;
+  asset_condition_type?: "or-gate" | "and-gate" | null;
 };
 
-export type type = "join" | "task" | "asset_condition";
+export type type =
+  | "join"
+  | "task"
+  | "asset-condition"
+  | "asset"
+  | "asset-alias"
+  | "dag"
+  | "sensor"
+  | "trigger";
 
 /**
  * Request body for Clear Task Instances endpoint.
@@ -1270,6 +1288,7 @@ export type XComResponse = {
   map_index: number;
   task_id: string;
   dag_id: string;
+  run_id: string;
 };
 
 /**
@@ -1282,6 +1301,7 @@ export type XComResponseNative = {
   map_index: number;
   task_id: string;
   dag_id: string;
+  run_id: string;
   value: unknown;
 };
 
@@ -1295,6 +1315,7 @@ export type XComResponseString = {
   map_index: number;
   task_id: string;
   dag_id: string;
+  run_id: string;
   value: string | null;
 };
 
@@ -1341,6 +1362,8 @@ export type GetAssetEventsData = {
   sourceMapIndex?: number | null;
   sourceRunId?: string | null;
   sourceTaskId?: string | null;
+  timestampGte?: string | null;
+  timestampLte?: string | null;
 };
 
 export type GetAssetEventsResponse = AssetEventCollectionResponse;
@@ -1443,6 +1466,7 @@ export type HistoricalMetricsResponse = HistoricalMetricDataResponse;
 
 export type StructureDataData = {
   dagId: string;
+  externalDependencies?: boolean;
   includeDownstream?: boolean;
   includeUpstream?: boolean;
   root?: string | null;

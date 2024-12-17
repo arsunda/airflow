@@ -54,6 +54,7 @@ from airflow.sdk.api.datamodels._generated import (
     TaskInstance,
     TerminalTIState,
     TIDeferredStatePayload,
+    TIRunContext,
     VariableResponse,
     XComResponse,
 )
@@ -70,6 +71,7 @@ class StartupDetails(BaseModel):
 
     Responses will come back on stdin
     """
+    ti_context: TIRunContext
     type: Literal["StartupDetails"] = "StartupDetails"
 
 
@@ -176,7 +178,7 @@ class SetRenderedFields(BaseModel):
     # We are using a BaseModel here compared to server using RootModel because we
     # have a discriminator running with "type", and RootModel doesn't support type
 
-    rendered_fields: dict[str, str | None]
+    rendered_fields: dict[str, JsonValue]
     type: Literal["SetRenderedFields"] = "SetRenderedFields"
 
 
