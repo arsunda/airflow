@@ -51,15 +51,21 @@ jobs:
       - name: Run System Tests for Microsoft Fabric Provider
         id: system-tests-for-microsoft-fabric
         env:
-          SYSTEM_TESTS_FABRIC_DATASET_ID: "${{ secrets.DATASET_ID }}"
-          SYSTEM_TESTS_FABRIC_GROUP_ID: "${{ secrets.GROUP_ID }}"
+          # SYSTEM_TESTS_FABRIC_DATASET_ID: "${{ secrets.DATASET_ID }}"
+          # SYSTEM_TESTS_FABRIC_GROUP_ID: "${{ secrets.GROUP_ID }}"
           SYSTEM_TESTS_FABRIC_CLIENT_ID: "${{ secrets.CLIENT_ID }}"
           SYSTEM_TESTS_FABRIC_REFRESH_TOKEN: "${{ secrets.REFRESH_TOKEN }}"
           SYSTEM_TESTS_FABRIC_TENANT_ID: "${{ secrets.TENANT_ID }}"
+          SYSTEM_TESTS_FABRIC_WORKSPACE_ID: "${{ secrets.SYSTEM_TESTS_FABRIC_WORKSPACE_ID }}" 
+          SYSTEM_TESTS_FABRIC_NOTEBOOK_ID: "${{ secrets.SYSTEM_TESTS_FABRIC_NOTEBOOK_ID }}" 
+          SYSTEM_TESTS_FABRIC_PIPELINE_ID: "${{ secrets.SYSTEM_TESTS_FABRIC_PIPELINE_ID }}" 
         run: |
           export BREEZE_INIT_COMMAND="export SYSTEM_TESTS_FABRIC_CLIENT_ID=${SYSTEM_TESTS_FABRIC_CLIENT_ID} \
             && export SYSTEM_TESTS_FABRIC_REFRESH_TOKEN=${SYSTEM_TESTS_FABRIC_REFRESH_TOKEN} \
-            && export SYSTEM_TESTS_FABRIC_TENANT_ID=${SYSTEM_TESTS_FABRIC_TENANT_ID}"
+            && export SYSTEM_TESTS_FABRIC_TENANT_ID=${SYSTEM_TESTS_FABRIC_TENANT_ID}" \
+            && export SYSTEM_TESTS_FABRIC_WORKSPACE_ID=${SYSTEM_TESTS_FABRIC_WORKSPACE_ID}" \
+            && export SYSTEM_TESTS_FABRIC_NOTEBOOK_ID=${SYSTEM_TESTS_FABRIC_NOTEBOOK_ID}" \
+            && export SYSTEM_TESTS_FABRIC_PIPELINE_ID=${SYSTEM_TESTS_FABRIC_PIPELINE_ID}" 
 
           breeze ci-image build
           
