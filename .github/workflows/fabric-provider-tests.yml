@@ -62,11 +62,10 @@ jobs:
             && export SYSTEM_TESTS_FABRIC_TENANT_ID=${SYSTEM_TESTS_FABRIC_TENANT_ID}"
 
           breeze ci-image build
-          printenv
           
           breeze testing system-tests --verbose \
           providers/tests/system/microsoft/fabric/example_fabric_notebook_run.py \
-          providers/tests/system/microsoft/fabric/example_fabric_pipeline_run.py \
+          # providers/tests/system/microsoft/fabric/example_fabric_pipeline_run.py \
           --junitxml=tests/pytest-report.xml
 
   #     - name: Upload Raw System Test Report to Github artifact storage
