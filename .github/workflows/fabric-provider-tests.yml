@@ -51,8 +51,6 @@ jobs:
       - name: Run System Tests for Microsoft Fabric Provider
         id: system-tests-for-microsoft-fabric
         env:
-          # SYSTEM_TESTS_FABRIC_DATASET_ID: "${{ secrets.DATASET_ID }}"
-          # SYSTEM_TESTS_FABRIC_GROUP_ID: "${{ secrets.GROUP_ID }}"
           SYSTEM_TESTS_FABRIC_CLIENT_ID: "${{ secrets.CLIENT_ID }}"
           SYSTEM_TESTS_FABRIC_REFRESH_TOKEN: "${{ secrets.REFRESH_TOKEN }}"
           SYSTEM_TESTS_FABRIC_TENANT_ID: "${{ secrets.TENANT_ID }}"
@@ -71,7 +69,7 @@ jobs:
           
           breeze testing system-tests --verbose \
           providers/tests/system/microsoft/fabric/example_fabric_notebook_run.py \
-          # providers/tests/system/microsoft/fabric/example_fabric_pipeline_run.py \
+          providers/tests/system/microsoft/fabric/example_fabric_pipeline_run.py \
           --junitxml=tests/pytest-report.xml
 
   #     - name: Upload Raw System Test Report to Github artifact storage
