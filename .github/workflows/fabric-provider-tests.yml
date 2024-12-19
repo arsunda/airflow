@@ -1,9 +1,9 @@
 ---
 name: System dashboard workflow for Microsoft Fabric
 on:  # yamllint disable-line rule:truthy
-  # schedule:
-    # - cron: "0 */2 * * *"  # Runs every 2 hours
-  workflow_dispatch:  # Allows manual triggering
+  schedule:
+    - cron: "0 */1 * * *"  # Runs every 2 hours
+  # workflow_dispatch:  # Allows manual triggering
 jobs:
   setup-azure-cli:
     uses: ./.github/workflows/install-azure-cli.yml
