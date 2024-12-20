@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import type { TaskInstanceResponse } from "openapi/requests/types.gen";
 
-export { capitalize } from "./capitalize";
-export { pluralize } from "./pluralize";
-export { getDuration } from "./datetime_utils";
+export const getTaskInstanceLink = (ti: TaskInstanceResponse) =>
+  `/dags/${ti.dag_id}/runs/${ti.dag_run_id}/tasks/${ti.task_id}${ti.map_index >= 0 ? `?map_index=${ti.map_index}` : ""}`;
