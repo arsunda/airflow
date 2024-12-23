@@ -24,8 +24,8 @@ jobs:
       # Later on set it as common step
       - name: Set Up Git
         run: |
-          git config --global user.name "Ambika Garg"
-          git config --global user.email "ambikagarg1101@gmail.com"
+          git config --global user.name "Arul S"
+          git config --global user.email "arsunda@microsoft.com"
 
       - name: Git Pull
         run: |
