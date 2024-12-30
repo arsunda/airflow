@@ -43,7 +43,7 @@ jobs:
         run: |
           git checkout dev-fabric
       #     git rebase upstream/main
-      #     git push https://${{ secrets.AIRFLOW_FORK_TOKEN }}@github.com/ambika-garg/airflow.git \
+      #     git push https://${{ secrets.AIRFLOW_FORK_TOKEN }}@github.com/arsunda/airflow.git \
       #     dev-fabric --force-with-lease
 
       - name: Install Breeze
@@ -115,8 +115,8 @@ jobs:
 
       - name: Set Up Git
         run: |
-          git config --global user.name "Ambika Garg"
-          git config --global user.email "ambikagarg1101@gmail.com"
+          git config --global user.name "Arul S"
+          git config --global user.email "arsunda@microsoft.com"
 
       - name: Download System Test Report
         uses: actions/download-artifact@v4
@@ -177,8 +177,8 @@ jobs:
           API_TOKEN_GITHUB: ${{ secrets.AIRFLOW_FORK_TOKEN }}
         with:
           source_file: 'report.json'
-          destination_repo: 'ambika-garg/fabric-airflow-system-dashboard'
+          destination_repo: 'arsunda/fabric-airflow-system-dashboard'
           destination_folder: '_data'
-          user_email: 'ambikagarg1101@gmail.com'
-          user_name: 'Ambika Garg'
+          user_email: 'arsunda@microsoft.com'
+          user_name: 'Arul S'
           commit_message: 'Add test report to dashboard repo'
